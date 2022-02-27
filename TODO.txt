@@ -1,0 +1,8 @@
+1. Segmentation
+2. Depth to Point Cloud
+3. Point Cloud Fusion
+4. Point Cloud to Mesh
+5. Integration/De-integration of voxels
+6. Django Website
+7. Android Application
+8. 
