@@ -32,10 +32,26 @@ class Modeler:
         self.__create_pc_model(s_rgbd)
         self.__create_mesh_model(self.pc_model)
     
-    def create_mesh_model(self, pcd):
-        # jeff
-        mesh = None
-        self.mesh_model = mesh
+    def __create_mesh_model(self, pcd):
+
+        #Vertex DownSampling 
+        print("Downsample the point cloud with a voxel of 0.000001")
+        downpcd = pcd.voxel_down_sample(voxel_size=0.000001)
+        #downpcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+        #adding normals
+        print("Adding the normals on the Point cloud and Invalidates Existing normals")
+        downpcd.normals = o3d.utility.Vector3dVector(np.zeros((1, 3)))  # invalidate existing normals
+        print("Estimating normals")
+        downpcd.estimate_normals()
+        downpcd.orient_normals_consistent_tangent_plane(100)
+        #creating Alpha mesh
+        print("Creating the mesh using Alpha model")
+        meshAlpha = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(downpcd,0.03)
+        meshAlpha.compute_triangle_normals(normalized=True)
+        #displaying of model
+        print("Displaying the Mesh")
+        o3d.visualization.draw_geometries([meshAlpha], mesh_show_back_face=True)
+        self.mesh_model = meshAlpha
 
     
     def __create_pc_model(self,s_rgbd):
