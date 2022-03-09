@@ -1,5 +1,4 @@
-print('starting...')
-
+from importlib.resources import path
 import cv2 as cv
 import numpy as np
 import glob
@@ -21,19 +20,39 @@ class Modeler:
         self.rgb.sort()
         self.depth = glob.glob(depth_path + '*.png')
         self.depth.sort()
+        print(str(len(self.rgb)) + ' found in folder')
     
     def create_model(self):
-        s_rgb = self.rgb[:10]
-        s_depth = self.depth[:10]
+        # MAX = 10
+        # s_rgb = self.rgb[:MAX]
+        # s_depth = self.depth[:MAX]
+        s_rgb = self.__get_sample(self.rgb,10,10)
+        s_depth = self.__get_sample(self.depth,10,10)
         s_rgb = self.__load_rgbs(s_rgb)
         s_depth = self.__load_depths(s_depth)
         s_depth = self.__segment_objects(s_depth)
         s_rgbd = self.__create_rgbd(s_rgb,s_depth)
         self.__create_pc_model(s_rgbd)
-        self.__create_mesh_model(self.pc_model)
+        # self.__create_mesh_model(self.pc_model)
+
+    def save_pc_model(self, fn):
+        print('saving pc model...')
+        o3d.io.write_point_cloud(fn,self.pc_model,
+                        write_ascii=False,compressed=True,print_progress=True)
+        print('pc model saved')
+
+    def __get_sample(self,paths,jump,max):
+        sample = []
+        i = 0
+        count = 0
+        size = len(paths)
+        while i<size and count<max:
+            sample.append(paths[i])
+            i += jump
+            count += 1
+        return sample
     
     def __create_mesh_model(self, pcd):
-
         #Vertex DownSampling 
         print("Downsample the point cloud with a voxel of 0.000001")
         downpcd = pcd.voxel_down_sample(voxel_size=0.000001)
@@ -58,6 +77,12 @@ class Modeler:
         param1 = o3d.camera.PinholeCameraIntrinsic(o3d.camera.PinholeCameraIntrinsicParameters.PrimeSenseDefault)
         param2 = o3d.pipelines.registration.TransformationEstimationPointToPoint()
 
+        threshold = 0.002
+        transform = np.asarray([[1.0, 0.0, 0.0, 0.0],
+                                [0.0, -1.0, 0.0, 0.0],
+                                [0.0, 0.0, -1.0, 0.0], 
+                                [0.0, 0.0, 0.0, 1.0]])
+
         count = 1
         size = len(s_rgbd)
 
@@ -65,33 +90,42 @@ class Modeler:
         count += 1
         target = o3d.geometry.PointCloud.create_from_rgbd_image(s_rgbd.pop(0),param1)
         target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
-        target.transform([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-
-        threshold = 0.02
-        transform = np.asarray([[1.0, 0.0, 0.0, 0.0],
-                                [0.0, 1.0, 0.0, 0.0],
-                                [0.0, 0.0, 1.0, 0.0], 
-                                [0.0, 0.0, 0.0, 1.0]])
+        target.transform(transform)
+        print(len(target.points))
+        # o3d.visualization.draw_geometries([target])
+        
+        # pcd = [target]
 
         for rgbd in s_rgbd:
             print('creating model', '[' + str(count) + '/' + str(size) + ']')
             count += 1
             source = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd,param1)
-            target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
-            source.transform([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]]) #flip
+            source = source.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
             reg_p2p = o3d.pipelines.registration.registration_icp(source, target, threshold, transform, param2)
             transform = reg_p2p.transformation
             evaluation = o3d.pipelines.registration.evaluate_registration(source, target,
                                                     threshold, transform)
-            print(evaluation.fitness)
+            # self.__draw_registration_result(source,target,transform)
             source.transform(transform)
+            # pcd.append(source)
+            # o3d.visualization.draw_geometries([source])
             # target = self.__combine(source,target)
+            # self.__fuse(source,target,transform)
             target = target + source
             target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
+            print(evaluation.fitness, len(target.points))
+            # print(np.asarray(evaluation.correspondence_set))
+            
         
         o3d.visualization.draw_geometries([target])
-        self.model = target
+        # o3d.visualization.draw_geometries(pcd)
+        self.pc_model = target
         print(target)
+
+    def __fuse(self, source, target, transform):
+        for p in source:
+            p = p.transform(transform)
+            target += p
 
     def __combine(self, source, target):
         source = np.asarray(source)
@@ -126,8 +160,8 @@ class Modeler:
     def __draw_registration_result(self, source, target, transformation):
         source_temp = copy.deepcopy(source)
         target_temp = copy.deepcopy(target)
-        source_temp.paint_uniform_color([1, 0.706, 0])
-        # target_temp.paint_uniform_color([0, 0.651, 0.929])
+        # source_temp.paint_uniform_color([1, 0.706, 0])
+        target_temp.paint_uniform_color([0, 0.651, 0.929])
         source_temp.transform(transformation)
         o3d.visualization.draw_geometries([source_temp, target_temp])
 
@@ -224,12 +258,3 @@ class Modeler:
                 t0 = t1
                 t1 = (mean1 + mean2)//2
         return int(t1)
-
-def main():
-    rgb = '../../dataset/rgb/'
-    depth = '../../dataset/depth/'
-    modeler = Modeler(rgb,depth)
-    modeler.create_model()
-
-if __name__ == '__main__':
-    main()
