@@ -1,0 +1,10 @@
+Dynamic 3D Reconstruction
+- update model with newly-optimized camera pose
+
+Scene Representation
+- fusing all RGB-D into truncated signed distance (TSDF)
+- TSDF: volumetric grid of voxels
+    -> sparse volumetric voxel hashing
+- voxel blocks of 8x8x8
+
+Integration and De-integration

@@ -5,6 +5,8 @@ import glob
 import open3d as o3d
 import copy
 
+from voxel_grid import VoxelGrid
+
 # from o3d.geometry.PointCloud import create_from_rgbd_image
 # from o3d.pipelines.registration import registration_icp
 
@@ -89,36 +91,43 @@ class Modeler:
         print('creating model', '[' + str(count) + '/' + str(size) + ']')
         count += 1
         target = o3d.geometry.PointCloud.create_from_rgbd_image(s_rgbd.pop(0),param1)
-        target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
+        # target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
         target.transform(transform)
-        print(len(target.points))
+        # print(len(target.points))
         # o3d.visualization.draw_geometries([target])
         
-        # pcd = [target]
+        pcd = target
 
         for rgbd in s_rgbd:
             print('creating model', '[' + str(count) + '/' + str(size) + ']')
             count += 1
             source = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd,param1)
-            source = source.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
+            # source = source.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
             reg_p2p = o3d.pipelines.registration.registration_icp(source, target, threshold, transform, param2)
             transform = reg_p2p.transformation
-            evaluation = o3d.pipelines.registration.evaluate_registration(source, target,
-                                                    threshold, transform)
+            # print(transform)
+            # evaluation = o3d.pipelines.registration.evaluate_registration(source, target,
+                                                    # threshold, transform)
             # self.__draw_registration_result(source,target,transform)
             source.transform(transform)
             # pcd.append(source)
+            target = source
+            pcd = pcd + source
             # o3d.visualization.draw_geometries([source])
             # target = self.__combine(source,target)
             # self.__fuse(source,target,transform)
-            target = target + source
-            target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
-            print(evaluation.fitness, len(target.points))
+            # target = target + source
+            # target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
+            # print(evaluation)
+            # print(source)
             # print(np.asarray(evaluation.correspondence_set))
             
         
-        o3d.visualization.draw_geometries([target])
+        # o3d.visualization.draw_geometries([target])
         # o3d.visualization.draw_geometries(pcd)
+        print(pcd)
+        vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd,self.VOXEL_SIZE)
+        o3d.visualization.draw_geometries([vg])
         self.pc_model = target
         print(target)
 
