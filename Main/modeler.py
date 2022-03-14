@@ -4,6 +4,7 @@ import numpy as np
 import glob
 import open3d as o3d
 import copy
+from math import *
 
 from voxel_grid import VoxelGrid
 
@@ -33,6 +34,7 @@ class Modeler:
         s_rgb = self.__load_rgbs(s_rgb)
         s_depth = self.__load_depths(s_depth)
         s_depth = self.__segment_objects(s_depth)
+        s_depth = self.__convert_to_o3d_image(s_depth)
         s_rgbd = self.__create_rgbd(s_rgb,s_depth)
         self.__create_pc_model(s_rgbd)
         # self.__create_mesh_model(self.pc_model)
@@ -79,7 +81,7 @@ class Modeler:
         param1 = o3d.camera.PinholeCameraIntrinsic(o3d.camera.PinholeCameraIntrinsicParameters.PrimeSenseDefault)
         param2 = o3d.pipelines.registration.TransformationEstimationPointToPoint()
 
-        threshold = 0.002
+        threshold = 0.000001
         transform = np.asarray([[1.0, 0.0, 0.0, 0.0],
                                 [0.0, -1.0, 0.0, 0.0],
                                 [0.0, 0.0, -1.0, 0.0], 
@@ -91,45 +93,133 @@ class Modeler:
         print('creating model', '[' + str(count) + '/' + str(size) + ']')
         count += 1
         target = o3d.geometry.PointCloud.create_from_rgbd_image(s_rgbd.pop(0),param1)
-        # target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
+        target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
         target.transform(transform)
         # print(len(target.points))
         # o3d.visualization.draw_geometries([target])
         
         pcd = target
 
+        # vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd,self.VOXEL_SIZE)
+        # o3d.visualization.draw_geometries([vg])
+
         for rgbd in s_rgbd:
             print('creating model', '[' + str(count) + '/' + str(size) + ']')
             count += 1
             source = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd,param1)
-            # source = source.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
+            source = source.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
             reg_p2p = o3d.pipelines.registration.registration_icp(source, target, threshold, transform, param2)
             transform = reg_p2p.transformation
-            # print(transform)
-            # evaluation = o3d.pipelines.registration.evaluate_registration(source, target,
-                                                    # threshold, transform)
-            # self.__draw_registration_result(source,target,transform)
-            source.transform(transform)
-            # pcd.append(source)
+            evaluation = o3d.pipelines.registration.evaluate_registration(source, target,
+                                                    threshold, transform)
+            print(evaluation)
+            # while reg_p2p.inlier_rmse>0.000001:
+            #     reg_p2p = o3d.pipelines.registration.registration_icp(source, target, threshold, transform, param2)
+            #     transform = reg_p2p.transformation
+            #     evaluation = o3d.pipelines.registration.evaluate_registration(source, target,
+            #                                         threshold, transform)
+            #     print(evaluation)
+            # transform = self.__rotate(reg_p2p.transformation,1,radians(10))
+            source.transform(reg_p2p.transformation)
             target = source
             pcd = pcd + source
-            # o3d.visualization.draw_geometries([source])
-            # target = self.__combine(source,target)
-            # self.__fuse(source,target,transform)
-            # target = target + source
-            # target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
-            # print(evaluation)
-            # print(source)
-            # print(np.asarray(evaluation.correspondence_set))
-            
-        
-        # o3d.visualization.draw_geometries([target])
-        # o3d.visualization.draw_geometries(pcd)
+            # vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd,self.VOXEL_SIZE)
+            # o3d.visualization.draw_geometries([vg])
+
         print(pcd)
         vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd,self.VOXEL_SIZE)
         o3d.visualization.draw_geometries([vg])
-        self.pc_model = target
-        print(target)
+        # self.pc_model = target
+        # print(target)
+
+    def __rotate(self, transform, axis, rad):
+        # axis : 0-x, 1-y, 2-z
+        transform = np.array(transform)
+        if axis==0:
+            rot_mat = np.array([
+                [1,0,0,0],
+                [0,cos(rad),sin(rad),0],
+                [0,-sin(rad),cos(rad),0],
+                [0,0,0,1]
+            ])
+            transform = np.dot(transform,rot_mat)
+        elif axis==1:
+            rot_mat = np.array([
+                [cos(rad),0,-sin(rad),0],
+                [0,1,0,0],
+                [sin(rad),0,cos(rad),0],
+                [0,0,0,1]
+            ])
+            transform = np.dot(transform,rot_mat)
+        elif axis==2:
+            rot_mat = np.array([
+                [cos(rad),-sin(rad),0,0],
+                [sin(rad),cos(rad),0,0],
+                [0,0,1,0],
+                [0,0,0,1]
+            ])
+            transform = np.dot(transform,rot_mat)
+        return transform.tolist()
+    
+    def __create_pc_model2(self,s_rgbd):
+        param1 = o3d.camera.PinholeCameraIntrinsic(o3d.camera.PinholeCameraIntrinsicParameters.PrimeSenseDefault)
+
+        radius_normal = self.VOXEL_SIZE * 2
+        radius_feature = self.VOXEL_SIZE * 5
+        distance_threshold = self.VOXEL_SIZE * 1.5
+        transform = np.asarray([[1.0, 0.0, 0.0, 0.0],
+                                [0.0, -1.0, 0.0, 0.0],
+                                [0.0, 0.0, -1.0, 0.0], 
+                                [0.0, 0.0, 0.0, 1.0]])
+
+        count = 1
+        size = len(s_rgbd)
+
+        print('creating model', '[' + str(count) + '/' + str(size) + ']')
+        count += 1
+
+        target = o3d.geometry.PointCloud.create_from_rgbd_image(s_rgbd.pop(0),param1)
+        target = target.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
+        target.transform(transform)
+        target.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
+        target_fpfh = o3d.pipelines.registration.compute_fpfh_feature(target,o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
+        
+        pcd = target
+
+        # vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd,self.VOXEL_SIZE)
+        # o3d.visualization.draw_geometries([vg])
+
+        for rgbd in s_rgbd:
+            print('creating model', '[' + str(count) + '/' + str(size) + ']')
+            count += 1
+            source = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd,param1)
+            source = source.voxel_down_sample(voxel_size=self.VOXEL_SIZE)
+            source.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
+            source_fpfh = o3d.pipelines.registration.compute_fpfh_feature(source,o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
+            reg_ransac = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
+                        source, target, source_fpfh, target_fpfh, True,
+                        distance_threshold,
+                        o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
+                        3, [
+                            o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(
+                                0.9),
+                            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(
+                                distance_threshold)
+                        ], o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999))
+            transform = reg_ransac.transformation
+            # evaluation = o3d.pipelines.registration.evaluate_registration(source, target,
+                                                    # threshold, transform)
+            source.transform(transform)
+            # target = source
+            pcd = pcd + source
+            # vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd,self.VOXEL_SIZE)
+            # o3d.visualization.draw_geometries([vg])
+
+        print(pcd)
+        vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd,self.VOXEL_SIZE)
+        o3d.visualization.draw_geometries([vg])
+        # self.pc_model = target
+        # print(target)
 
     def __fuse(self, source, target, transform):
         for p in source:
@@ -207,6 +297,13 @@ class Modeler:
             img = cv.imread(depth)[:,:,0]
             imgs.append(img)
         return imgs
+    
+    def __convert_to_o3d_image(self, depths):
+        imgs = []
+        for img in depths:
+            img = o3d.geometry.Image(img.astype(np.uint8))
+            imgs.append(img)
+        return imgs
 
     def __segment_objects(self, depths):
         thresholds = []
@@ -228,7 +325,7 @@ class Modeler:
             # print('th =', th)
             thresholds.append(th[0])
             self.__extract_obj(img,th[0])
-            img = o3d.geometry.Image(img.astype(np.uint8))
+            # img = o3d.geometry.Image(img.astype(np.uint8))
             obj_depths.append(img)
         print('Segments Set Summary:', set(thresholds))
         return obj_depths
