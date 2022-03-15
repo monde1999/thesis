@@ -29,8 +29,8 @@ class Modeler:
         # MAX = 10
         # s_rgb = self.rgb[:MAX]
         # s_depth = self.depth[:MAX]
-        s_rgb = self.__get_sample(self.rgb,10,10)
-        s_depth = self.__get_sample(self.depth,10,10)
+        s_rgb = self.__get_sample(self.rgb,10,1)
+        s_depth = self.__get_sample(self.depth,10,1)
         s_rgb = self.__load_rgbs(s_rgb)
         s_depth = self.__load_depths(s_depth)
         s_depth = self.__segment_objects(s_depth)
@@ -81,7 +81,7 @@ class Modeler:
         param1 = o3d.camera.PinholeCameraIntrinsic(o3d.camera.PinholeCameraIntrinsicParameters.PrimeSenseDefault)
         param2 = o3d.pipelines.registration.TransformationEstimationPointToPoint()
 
-        threshold = 0.000001
+        threshold = 0.0000009
         transform = np.asarray([[1.0, 0.0, 0.0, 0.0],
                                 [0.0, -1.0, 0.0, 0.0],
                                 [0.0, 0.0, -1.0, 0.0], 
