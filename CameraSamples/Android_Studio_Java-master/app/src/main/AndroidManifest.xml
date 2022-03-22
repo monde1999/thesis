@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.lab1.labolatorul_nr_1">
+
+    <uses-permission android:name="android.permission.CAMERA"> </uses-permission>
+    <!--<activity-->
+        <!--android:name="goToAnActivity"-->
+        <!--android:label="@string/app_name">-->
+    <!--</activity>-->
+
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+
+    <application
+
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.DayNight">
+        <activity
+            android:name=".CameraApplication"
+            android:label="@string/app_name"
+            android:theme="@style/AppTheme.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <!--code for push service from Firebase google-->
+        https://console.firebase.google.com/project/lab1-ba3f6/notification
+
+        <service android:name=".MyFirebaseInstanceIdService">
+            <intent-filter>
+                <action android:name="com.google.firebase.INSTANCE_ID_EVENT">
+
+                </action>
+            </intent-filter>
+        </service>
+        <!--code for messaging service in Firebase-->
+        <service android:name=".MyFirebaseMessagingService">
+            <!--&lt;!&ndash;here should i have an instance for my code and to make stop the notification-->
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT">
+
+                </action>
+            </intent-filter>
+        </service>
+    </application>
+    
+
+</manifest>
