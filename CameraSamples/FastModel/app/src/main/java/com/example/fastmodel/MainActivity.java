@@ -36,8 +36,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -65,6 +67,10 @@ public class MainActivity extends AppCompatActivity {
     private boolean mFlashSupported;
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
+    private String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+    private String imgName ="img_"+timestamp+"_";
+    private int counter;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 takePicture();
+                countPictures(counter);
             }
         });
     }
@@ -150,6 +157,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public int countPictures( int lastCounted){
+        counter = lastCounted++;
+
+        return counter ;
+    }
     protected void takePicture() {
         if (null == cameraDevice) {
             Log.e(TAG, "cameraDevice is null");
@@ -168,7 +180,7 @@ public class MainActivity extends AppCompatActivity {
                 width = jpegSizes[0].getWidth();
                 height = jpegSizes[0].getHeight();
             }
-            ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+            ImageReader reader = ImageReader.newInstance(height , width    , ImageFormat.JPEG, 1);
             List<Surface> outputSurfaces = new ArrayList<Surface>(2);
             outputSurfaces.add(reader.getSurface());
             outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
@@ -178,7 +190,8 @@ public class MainActivity extends AppCompatActivity {
             // Orientation
             int rotation = getWindowManager().getDefaultDisplay().getRotation();
             captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
-            final File file = new File(Environment.getExternalStorageDirectory() + "/pic.jpg");
+            Integer counted = counter;
+            final File file = new File(Environment.getExternalStorageDirectory() + "/Pictures/", "IMG_"+ new Date().getTime() + ".jpg");
 
             ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
